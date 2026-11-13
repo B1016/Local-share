@@ -1,0 +1,1844 @@
+name: Build Local Drop APK
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Accept Android SDK Licenses
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: Setup Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Generate Project Structure & Source Files
+        run: |
+          mkdir -p app/src/main/java/com/localdrop/app
+          mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/mipmap-anydpi-v26
+          mkdir -p app/src/main/res/values
+
+          cat << 'EOF' > settings.gradle.kts
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "LocalDrop"
+          include(":app")
+          EOF
+
+          cat << 'EOF' > build.gradle.kts
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF
+
+          cat << 'EOF' > gradle.properties
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          EOF
+
+          cat << 'EOF' > app/build.gradle.kts
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          android {
+              namespace = "com.localdrop.app"
+              compileSdk = 35
+
+              defaultConfig {
+                  applicationId = "com.localdrop.app"
+                  minSdk = 21
+                  targetSdk = 35
+                  versionCode = 1
+                  versionName = "1.0.0"
+                  vectorDrawables {
+                      useSupportLibrary = true
+                  }
+              }
+
+              buildTypes {
+                  release {
+                      isMinifyEnabled = false
+                  }
+                  debug {
+                      isDebuggable = true
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+
+              buildFeatures {
+                  compose = true
+              }
+
+              composeOptions {
+                  kotlinCompilerExtensionVersion = "1.5.14"
+              }
+
+              packaging {
+                  resources {
+                      excludes += "/META-INF/{AL2.0,LGPL2.1}"
+                  }
+              }
+          }
+
+          dependencies {
+              implementation("androidx.core:core-ktx:1.13.1")
+              implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
+              implementation("androidx.activity:activity-compose:1.9.1")
+              implementation(platform("androidx.compose:compose-bom:2024.06.00"))
+              implementation("androidx.compose.ui:ui")
+              implementation("androidx.compose.ui:ui-graphics")
+              implementation("androidx.compose.ui:ui-tooling-preview")
+              implementation("androidx.compose.material3:material3")
+              implementation("androidx.compose.material:material-icons-extended")
+              implementation("androidx.documentfile:documentfile:1.0.1")
+              implementation("org.nanohttpd:nanohttpd:2.3.1")
+              implementation("com.google.zxing:core:3.5.3")
+          }
+          EOF
+
+          cat << 'EOF' > app/src/main/res/values/strings.xml
+          <resources>
+              <string name="app_name">Local Drop</string>
+          </resources>
+          EOF
+
+          cat << 'EOF' > app/src/main/res/values/themes.xml
+          <resources>
+              <style name="Theme.LocalDrop" parent="android:Theme.Material.NoActionBar">
+                  <item name="android:statusBarColor">@android:color/transparent</item>
+                  <item name="android:navigationBarColor">@android:color/transparent</item>
+              </style>
+          </resources>
+          EOF
+
+          cat << 'EOF' > app/src/main/res/drawable/ic_launcher_background.xml
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:aapt="http://schemas.android.com/aapt"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <path android:pathData="M0,0h108v108h-108z">
+                  <aapt:attr name="android:fillColor">
+                      <gradient
+                          android:startX="0"
+                          android:startY="0"
+                          android:endX="108"
+                          android:endY="108"
+                          android:type="linear">
+                          <item android:offset="0.0" android:color="#FF0E131F" />
+                          <item android:offset="0.45" android:color="#FF05070B" />
+                          <item android:offset="1.0" android:color="#FF000000" />
+                      </gradient>
+                  </aapt:attr>
+              </path>
+              <path android:pathData="M0,0 L108,0 L108,42 Q54,68 0,34 Z">
+                  <aapt:attr name="android:fillColor">
+                      <gradient
+                          android:startX="20"
+                          android:startY="0"
+                          android:endX="64"
+                          android:endY="58"
+                          android:type="linear">
+                          <item android:offset="0.0" android:color="#2EFFFFFF" />
+                          <item android:offset="0.6" android:color="#0C70B5FF" />
+                          <item android:offset="1.0" android:color="#00000000" />
+                      </gradient>
+                  </aapt:attr>
+              </path>
+          </vector>
+          EOF
+
+          cat << 'EOF' > app/src/main/res/drawable/ic_launcher_foreground.xml
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:aapt="http://schemas.android.com/aapt"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <!-- Outer Glossy Glass Ring Accent -->
+              <path
+                  android:pathData="M54,20 A34,34 0 1,0 54,88 A34,34 0 1,0 54,20 Z"
+                  android:strokeWidth="0.75"
+                  android:strokeColor="#2238BDF8"
+                  android:fillColor="#00000000" />
+
+              <!-- Reversed Gradient Blue Hotspot Arcs (Top-Left / Inverted Opening to Bottom-Right) -->
+              <path
+                  android:pathData="M31.4,76.6 A32,32 0 1,1 76.6,31.4"
+                  android:strokeWidth="5.2"
+                  android:strokeLineCap="round"
+                  android:fillColor="#00000000">
+                  <aapt:attr name="android:strokeColor">
+                      <gradient
+                          android:startX="22"
+                          android:startY="76"
+                          android:endX="76"
+                          android:endY="22"
+                          android:type="linear">
+                          <item android:offset="0.0" android:color="#FF1E3A8A" />
+                          <item android:offset="0.5" android:color="#FF2563EB" />
+                          <item android:offset="1.0" android:color="#FF3B82F6" />
+                      </gradient>
+                  </aapt:attr>
+              </path>
+
+              <path
+                  android:pathData="M37.7,70.3 A23,23 0 1,1 70.3,37.7"
+                  android:strokeWidth="5.2"
+                  android:strokeLineCap="round"
+                  android:fillColor="#00000000">
+                  <aapt:attr name="android:strokeColor">
+                      <gradient
+                          android:startX="30"
+                          android:startY="70"
+                          android:endX="70"
+                          android:endY="30"
+                          android:type="linear">
+                          <item android:offset="0.0" android:color="#FF1D4ED8" />
+                          <item android:offset="0.5" android:color="#FF2563EB" />
+                          <item android:offset="1.0" android:color="#FF60A5FA" />
+                      </gradient>
+                  </aapt:attr>
+              </path>
+
+              <!-- Reversed Hotspot Core Node with Puzzle Tab Protruding Bottom-Right -->
+              <path
+                  android:pathData="M44.1,63.9 A14,14 0 1,1 63.9,44.1 L59.5,48.5 C62.8,50.8 63.2,55.2 60.5,57.9 C57.8,60.6 53.4,60.2 51.1,56.9 L44.1,63.9 Z">
+                  <aapt:attr name="android:fillColor">
+                      <gradient
+                          android:startX="40"
+                          android:startY="40"
+                          android:endX="64"
+                          android:endY="64"
+                          android:type="linear">
+                          <item android:offset="0.0" android:color="#FF1E40AF" />
+                          <item android:offset="1.0" android:color="#FF3B82F6" />
+                      </gradient>
+                  </aapt:attr>
+              </path>
+
+              <!-- Lighter Blue Gradient Wi-Fi Logo in the Empty Bottom-Right Space with Matching Puzzle Socket -->
+              <path
+                  android:pathData="M65.8,46.2 A14,14 0 0,1 46.2,65.8 L51.6,60.4 C54.5,63.2 59.5,62.8 62.1,60.2 C64.7,57.6 65.1,52.6 62.3,49.7 L65.8,46.2 Z">
+                  <aapt:attr name="android:fillColor">
+                      <gradient
+                          android:startX="46"
+                          android:startY="66"
+                          android:endX="68"
+                          android:endY="46"
+                          android:type="linear">
+                          <item android:offset="0.0" android:color="#FF38BDF8" />
+                          <item android:offset="1.0" android:color="#FFA5F3FC" />
+                      </gradient>
+                  </aapt:attr>
+              </path>
+
+              <path
+                  android:pathData="M72.2,41.8 A23,23 0 0,1 41.8,72.2"
+                  android:strokeWidth="5.2"
+                  android:strokeLineCap="round"
+                  android:fillColor="#00000000">
+                  <aapt:attr name="android:strokeColor">
+                      <gradient
+                          android:startX="42"
+                          android:startY="72"
+                          android:endX="72"
+                          android:endY="42"
+                          android:type="linear">
+                          <item android:offset="0.0" android:color="#FF0284C7" />
+                          <item android:offset="0.5" android:color="#FF38BDF8" />
+                          <item android:offset="1.0" android:color="#FF7DD3FC" />
+                      </gradient>
+                  </aapt:attr>
+              </path>
+
+              <path
+                  android:pathData="M78.5,35.5 A32,32 0 0,1 35.5,78.5"
+                  android:strokeWidth="5.2"
+                  android:strokeLineCap="round"
+                  android:fillColor="#00000000">
+                  <aapt:attr name="android:strokeColor">
+                      <gradient
+                          android:startX="35"
+                          android:startY="78"
+                          android:endX="78"
+                          android:endY="35"
+                          android:type="linear">
+                          <item android:offset="0.0" android:color="#FF0EA5E9" />
+                          <item android:offset="0.5" android:color="#FF38BDF8" />
+                          <item android:offset="1.0" android:color="#FFBAE6FD" />
+                      </gradient>
+                  </aapt:attr>
+              </path>
+          </vector>
+          EOF
+
+          cat << 'EOF' > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@drawable/ic_launcher_background" />
+              <foreground android:drawable="@drawable/ic_launcher_foreground" />
+          </adaptive-icon>
+          EOF
+
+          cat << 'EOF' > app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@drawable/ic_launcher_background" />
+              <foreground android:drawable="@drawable/ic_launcher_foreground" />
+          </adaptive-icon>
+          EOF
+
+          cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+              <application
+                  android:allowBackup="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:roundIcon="@mipmap/ic_launcher_round"
+                  android:label="@string/app_name"
+                  android:supportsRtl="true"
+                  android:usesCleartextTraffic="true"
+                  android:theme="@style/Theme.LocalDrop">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+
+          </manifest>
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/localdrop/app/MainActivity.kt
+          package com.localdrop.app
+
+          import android.content.ClipData
+          import android.content.ClipboardManager
+          import android.content.Context
+          import android.content.Intent
+          import android.graphics.Bitmap
+          import android.net.Uri
+          import android.os.Bundle
+          import android.webkit.MimeTypeMap
+          import android.widget.Toast
+          import androidx.activity.ComponentActivity
+          import androidx.activity.compose.rememberLauncherForActivityResult
+          import androidx.activity.compose.setContent
+          import androidx.activity.enableEdgeToEdge
+          import androidx.activity.result.contract.ActivityResultContracts
+          import androidx.compose.animation.AnimatedVisibility
+          import androidx.compose.animation.core.FastOutSlowInEasing
+          import androidx.compose.animation.core.RepeatMode
+          import androidx.compose.animation.core.animateFloat
+          import androidx.compose.animation.core.infiniteRepeatable
+          import androidx.compose.animation.core.rememberInfiniteTransition
+          import androidx.compose.animation.core.tween
+          import androidx.compose.foundation.Canvas
+          import androidx.compose.foundation.Image
+          import androidx.compose.foundation.background
+          import androidx.compose.foundation.border
+          import androidx.compose.foundation.clickable
+          import androidx.compose.foundation.layout.Arrangement
+          import androidx.compose.foundation.layout.Box
+          import androidx.compose.foundation.layout.Column
+          import androidx.compose.foundation.layout.PaddingValues
+          import androidx.compose.foundation.layout.Row
+          import androidx.compose.foundation.layout.Spacer
+          import androidx.compose.foundation.layout.fillMaxSize
+          import androidx.compose.foundation.layout.fillMaxWidth
+          import androidx.compose.foundation.layout.height
+          import androidx.compose.foundation.layout.padding
+          import androidx.compose.foundation.layout.size
+          import androidx.compose.foundation.layout.statusBarsPadding
+          import androidx.compose.foundation.layout.width
+          import androidx.compose.foundation.lazy.LazyColumn
+          import androidx.compose.foundation.lazy.items
+          import androidx.compose.foundation.shape.CircleShape
+          import androidx.compose.foundation.shape.RoundedCornerShape
+          import androidx.compose.material.icons.Icons
+          import androidx.compose.material.icons.outlined.CheckCircle
+          import androidx.compose.material.icons.outlined.ContentCopy
+          import androidx.compose.material.icons.outlined.Folder
+          import androidx.compose.material.icons.outlined.FolderOpen
+          import androidx.compose.material.icons.outlined.InsertDriveFile
+          import androidx.compose.material.icons.outlined.PowerSettingsNew
+          import androidx.compose.material.icons.outlined.QrCode2
+          import androidx.compose.material.icons.outlined.Refresh
+          import androidx.compose.material.icons.outlined.WifiTethering
+          import androidx.compose.material3.Button
+          import androidx.compose.material3.ButtonDefaults
+          import androidx.compose.material3.Icon
+          import androidx.compose.material3.IconButton
+          import androidx.compose.material3.MaterialTheme
+          import androidx.compose.material3.Surface
+          import androidx.compose.material3.Text
+          import androidx.compose.material3.darkColorScheme
+          import androidx.compose.runtime.Composable
+          import androidx.compose.runtime.DisposableEffect
+          import androidx.compose.runtime.LaunchedEffect
+          import androidx.compose.runtime.getValue
+          import androidx.compose.runtime.mutableIntStateOf
+          import androidx.compose.runtime.mutableStateListOf
+          import androidx.compose.runtime.mutableStateOf
+          import androidx.compose.runtime.remember
+          import androidx.compose.runtime.rememberCoroutineScope
+          import androidx.compose.runtime.setValue
+          import androidx.compose.ui.Alignment
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.draw.clip
+          import androidx.compose.ui.geometry.Offset
+          import androidx.compose.ui.geometry.Size
+          import androidx.compose.ui.graphics.Brush
+          import androidx.compose.ui.graphics.Color
+          import androidx.compose.ui.graphics.Path
+          import androidx.compose.ui.graphics.StrokeCap
+          import androidx.compose.ui.graphics.asImageBitmap
+          import androidx.compose.ui.graphics.drawscope.Stroke
+          import androidx.compose.ui.platform.LocalContext
+          import androidx.compose.ui.text.font.FontFamily
+          import androidx.compose.ui.text.font.FontWeight
+          import androidx.compose.ui.text.style.TextOverflow
+          import androidx.compose.ui.unit.dp
+          import androidx.compose.ui.unit.sp
+          import androidx.documentfile.provider.DocumentFile
+          import com.google.zxing.BarcodeFormat
+          import com.google.zxing.qrcode.QRCodeWriter
+          import fi.iki.elonen.NanoHTTPD
+          import kotlinx.coroutines.Dispatchers
+          import kotlinx.coroutines.launch
+          import kotlinx.coroutines.withContext
+          import java.io.FilterInputStream
+          import java.io.InputStream
+          import java.net.Inet4Address
+          import java.net.NetworkInterface
+          import java.net.URLDecoder
+          import java.net.URLEncoder
+          import java.text.DecimalFormat
+          import java.util.Collections
+          import java.util.Locale
+          import kotlin.math.log10
+          import kotlin.math.pow
+
+          data class SharedFileItem(
+              val name: String,
+              val relativePath: String,
+              val sizeBytes: Long,
+              val lastModified: Long,
+              val isDirectory: Boolean,
+              val mimeType: String,
+              val uri: Uri
+          )
+
+          class MainActivity : ComponentActivity() {
+              private var lanServer: LocalDropHttpServer? = null
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  enableEdgeToEdge()
+
+                  val prefs = getSharedPreferences("local_drop_prefs", Context.MODE_PRIVATE)
+                  val savedUriStr = prefs.getString("selected_folder_uri", null)
+                  val initialUri = savedUriStr?.let { Uri.parse(it) }
+
+                  setContent {
+                      MaterialTheme(
+                          colorScheme = darkColorScheme(
+                              background = Color(0xFF050811),
+                              surface = Color(0xFF0D1326),
+                              primary = Color(0xFF38BDF8),
+                              secondary = Color(0xFF2563EB)
+                          )
+                      ) {
+                          LocalDropScreen(
+                              initialFolderUri = initialUri,
+                              onSaveFolderUri = { uri ->
+                                  prefs.edit().putString("selected_folder_uri", uri.toString()).apply()
+                              },
+                              onStartServer = { folderUri, port, onDownloadCountIncrement ->
+                                  lanServer?.stop()
+                                  val server = LocalDropHttpServer(
+                                      context = applicationContext,
+                                      rootFolderUri = folderUri,
+                                      port = port,
+                                      onFileDownloaded = onDownloadCountIncrement
+                                  )
+                                  server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false)
+                                  lanServer = server
+                              },
+                              onStopServer = {
+                                  lanServer?.stop()
+                                  lanServer = null
+                              }
+                          )
+                      }
+                  }
+              }
+
+              override fun onDestroy() {
+                  lanServer?.stop()
+                  super.onDestroy()
+              }
+          }
+
+          @Composable
+          fun LocalDropLogoIcon(modifier: Modifier = Modifier) {
+              Canvas(modifier = modifier) {
+                  val w = size.width
+                  val h = size.height
+                  val center = Offset(w / 2f, h / 2f)
+
+                  // Glossy black squircle background
+                  drawRoundRect(
+                      brush = Brush.linearGradient(
+                          colors = listOf(Color(0xFF131B2E), Color(0xFF04060A), Color(0xFF000000)),
+                          start = Offset(0f, 0f),
+                          end = Offset(w, h)
+                      ),
+                      cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.24f, h * 0.24f)
+                  )
+
+                  // Subtle liquid glass top highlight
+                  drawRoundRect(
+                      brush = Brush.verticalGradient(
+                          colors = listOf(Color.White.copy(alpha = 0.16f), Color.Transparent),
+                          startY = 0f,
+                          endY = h * 0.5f
+                      ),
+                      cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.24f, h * 0.24f)
+                  )
+
+                  val deepBlueBrush = Brush.linearGradient(
+                      colors = listOf(Color(0xFF1E3A8A), Color(0xFF2563EB), Color(0xFF3B82F6)),
+                      start = Offset(w * 0.15f, h * 0.75f),
+                      end = Offset(w * 0.75f, h * 0.15f)
+                  )
+
+                  val lightBlueBrush = Brush.linearGradient(
+                      colors = listOf(Color(0xFF0284C7), Color(0xFF38BDF8), Color(0xFFA5F3FC)),
+                      start = Offset(w * 0.35f, h * 0.85f),
+                      end = Offset(w * 0.85f, h * 0.35f)
+                  )
+
+                  val strokeW = w * 0.065f
+
+                  // Reversed Hotspot Outer & Middle Arcs (Top-Left side, opening toward Bottom-Right)
+                  drawArc(
+                      brush = deepBlueBrush,
+                      startAngle = 140f,
+                      sweepAngle = 170f,
+                      useCenter = false,
+                      topLeft = Offset(w * 0.18f, h * 0.18f),
+                      size = Size(w * 0.64f, h * 0.64f),
+                      style = Stroke(width = strokeW, cap = StrokeCap.Round)
+                  )
+                  drawArc(
+                      brush = deepBlueBrush,
+                      startAngle = 140f,
+                      sweepAngle = 170f,
+                      useCenter = false,
+                      topLeft = Offset(w * 0.28f, h * 0.28f),
+                      size = Size(w * 0.44f, h * 0.44f),
+                      style = Stroke(width = strokeW, cap = StrokeCap.Round)
+                  )
+
+                  // Lighter Blue Wi-Fi Outer & Middle Arcs in the empty Bottom-Right space
+                  drawArc(
+                      brush = lightBlueBrush,
+                      startAngle = -40f,
+                      sweepAngle = 170f,
+                      useCenter = false,
+                      topLeft = Offset(w * 0.18f, h * 0.18f),
+                      size = Size(w * 0.64f, h * 0.64f),
+                      style = Stroke(width = strokeW, cap = StrokeCap.Round)
+                  )
+                  drawArc(
+                      brush = lightBlueBrush,
+                      startAngle = -40f,
+                      sweepAngle = 170f,
+                      useCenter = false,
+                      topLeft = Offset(w * 0.28f, h * 0.28f),
+                      size = Size(w * 0.44f, h * 0.44f),
+                      style = Stroke(width = strokeW, cap = StrokeCap.Round)
+                  )
+
+                  // Center Interlocking Puzzle Nodes (Hotspot tab into Wi-Fi socket)
+                  drawArc(
+                      brush = deepBlueBrush,
+                      startAngle = 135f,
+                      sweepAngle = 180f,
+                      useCenter = true,
+                      topLeft = Offset(w * 0.39f, h * 0.39f),
+                      size = Size(w * 0.22f, h * 0.22f)
+                  )
+                  drawArc(
+                      brush = lightBlueBrush,
+                      startAngle = -45f,
+                      sweepAngle = 180f,
+                      useCenter = true,
+                      topLeft = Offset(w * 0.41f, h * 0.41f),
+                      size = Size(w * 0.22f, h * 0.22f)
+                  )
+                  // Puzzle connector knob protruding from reversed hotspot into Wi-Fi core
+                  drawCircle(
+                      brush = deepBlueBrush,
+                      radius = w * 0.052f,
+                      center = Offset(center.x + w * 0.03f, center.y + h * 0.03f)
+                  )
+              }
+          }
+
+          @Composable
+          fun LiquidGlassCard(
+              modifier: Modifier = Modifier,
+              content: @Composable () -> Unit
+          ) {
+              Box(
+                  modifier = modifier
+                      .clip(RoundedCornerShape(26.dp))
+                      .background(
+                          Brush.linearGradient(
+                              colors = listOf(
+                                  Color.White.copy(alpha = 0.11f),
+                                  Color(0xFF38BDF8).copy(alpha = 0.05f),
+                                  Color.White.copy(alpha = 0.03f)
+                              )
+                          )
+                      )
+                      .border(
+                          width = 1.dp,
+                          brush = Brush.linearGradient(
+                              colors = listOf(
+                                  Color.White.copy(alpha = 0.28f),
+                                  Color(0xFF38BDF8).copy(alpha = 0.18f),
+                                  Color.White.copy(alpha = 0.05f)
+                              )
+                          ),
+                          shape = RoundedCornerShape(26.dp)
+                      )
+                      .padding(20.dp)
+              ) {
+                  content()
+              }
+          }
+
+          @Composable
+          fun LocalDropScreen(
+              initialFolderUri: Uri?,
+              onSaveFolderUri: (Uri) -> Unit,
+              onStartServer: (Uri, Int, () -> Unit) -> Unit,
+              onStopServer: () -> Unit
+          ) {
+              val context = LocalContext.current
+              val scope = rememberCoroutineScope()
+              val serverPort = 8080
+
+              var selectedFolderUri by remember { mutableStateOf(initialFolderUri) }
+              var folderName by remember { mutableStateOf("No folder selected") }
+              var isServerRunning by remember { mutableStateOf(false) }
+              var localIpAddress by remember { mutableStateOf(getDeviceLanIpAddress()) }
+              var totalDownloads by remember { mutableIntStateOf(0) }
+              var showQrModal by remember { mutableStateOf(false) }
+              val sharedFiles = remember { mutableStateListOf<SharedFileItem>() }
+              var isScanning by remember { mutableStateOf(false) }
+
+              fun refreshFolderContents(uri: Uri?) {
+                  if (uri == null) return
+                  isScanning = true
+                  scope.launch(Dispatchers.IO) {
+                      val docFolder = DocumentFile.fromTreeUri(context, uri)
+                      val resolvedName = docFolder?.name ?: "Selected Folder"
+                      val items = mutableListOf<SharedFileItem>()
+                      if (docFolder != null && docFolder.exists()) {
+                          docFolder.listFiles().forEach { file ->
+                              val fName = file.name ?: "Unnamed"
+                              items.add(
+                                  SharedFileItem(
+                                      name = fName,
+                                      relativePath = fName,
+                                      sizeBytes = file.length(),
+                                      lastModified = file.lastModified(),
+                                      isDirectory = file.isDirectory,
+                                      mimeType = file.type ?: guessMimeType(fName),
+                                      uri = file.uri
+                                  )
+                              )
+                          }
+                          items.sortWith(compareBy({ !it.isDirectory }, { it.name.lowercase(Locale.getDefault()) }))
+                      }
+                      withContext(Dispatchers.Main) {
+                          folderName = resolvedName
+                          sharedFiles.clear()
+                          sharedFiles.addAll(items)
+                          localIpAddress = getDeviceLanIpAddress()
+                          isScanning = false
+                      }
+                  }
+              }
+
+              val folderPickerLauncher = rememberLauncherForActivityResult(
+                  contract = ActivityResultContracts.OpenDocumentTree()
+              ) { uri: Uri? ->
+                  if (uri != null) {
+                      val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                      try {
+                          context.contentResolver.takePersistableUriPermission(uri, takeFlags)
+                      } catch (_: Exception) {}
+                      selectedFolderUri = uri
+                      onSaveFolderUri(uri)
+                      refreshFolderContents(uri)
+                      if (isServerRunning) {
+                          onStartServer(uri, serverPort) { totalDownloads++ }
+                      }
+                  }
+              }
+
+              LaunchedEffect(selectedFolderUri) {
+                  if (selectedFolderUri != null) {
+                      refreshFolderContents(selectedFolderUri)
+                  }
+              }
+
+              val serverUrl = "http://$localIpAddress:$serverPort"
+              val qrBitmap = remember(serverUrl) { generateQrCodeBitmap(serverUrl, 512) }
+
+              val infiniteTransition = rememberInfiniteTransition(label = "ambient_glow")
+              val glowPulse by infiniteTransition.animateFloat(
+                  initialValue = 0.85f,
+                  targetValue = 1.15f,
+                  animationSpec = infiniteRepeatable(
+                      animation = tween(3200, easing = FastOutSlowInEasing),
+                      repeatMode = RepeatMode.Reverse
+                  ),
+                  label = "pulse"
+              )
+
+              Box(
+                  modifier = Modifier
+                      .fillMaxSize()
+                      .background(
+                          Brush.verticalGradient(
+                              colors = listOf(
+                                  Color(0xFF040711),
+                                  Color(0xFF081126),
+                                  Color(0xFF03050C)
+                              )
+                          )
+                      )
+              ) {
+                  // Ambient Liquid Gradient Orbs
+                  Canvas(modifier = Modifier.fillMaxSize()) {
+                      drawCircle(
+                          brush = Brush.radialGradient(
+                              colors = listOf(
+                                  Color(0xFF2563EB).copy(alpha = 0.24f),
+                                  Color.Transparent
+                              ),
+                              center = Offset(size.width * 0.15f, size.height * 0.12f),
+                              radius = size.width * 0.65f * glowPulse
+                          ),
+                          center = Offset(size.width * 0.15f, size.height * 0.12f),
+                          radius = size.width * 0.65f * glowPulse
+                      )
+                      drawCircle(
+                          brush = Brush.radialGradient(
+                              colors = listOf(
+                                  Color(0xFF38BDF8).copy(alpha = 0.18f),
+                                  Color.Transparent
+                              ),
+                              center = Offset(size.width * 0.88f, size.height * 0.45f),
+                              radius = size.width * 0.6f
+                          ),
+                          center = Offset(size.width * 0.88f, size.height * 0.45f),
+                          radius = size.width * 0.6f
+                      )
+                  }
+
+                  LazyColumn(
+                      modifier = Modifier
+                          .fillMaxSize()
+                          .statusBarsPadding(),
+                      contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
+                      verticalArrangement = Arrangement.spacedBy(16.dp)
+                  ) {
+                      // Top Header
+                      item {
+                          Row(
+                              modifier = Modifier.fillMaxWidth(),
+                              verticalAlignment = Alignment.CenterVertically,
+                              horizontalArrangement = Arrangement.SpaceBetween
+                          ) {
+                              Row(verticalAlignment = Alignment.CenterVertically) {
+                                  LocalDropLogoIcon(modifier = Modifier.size(48.dp))
+                                  Spacer(modifier = Modifier.width(14.dp))
+                                  Column {
+                                      Text(
+                                          text = "Local Drop",
+                                          color = Color.White,
+                                          fontSize = 23.sp,
+                                          fontWeight = FontWeight.Bold
+                                      )
+                                      Text(
+                                          text = "Liquid Glass LAN File Host",
+                                          color = Color(0xFF94A3B8),
+                                          fontSize = 12.sp
+                                      )
+                                  }
+                              }
+
+                              Box(
+                                  modifier = Modifier
+                                      .clip(RoundedCornerShape(50))
+                                      .background(
+                                          if (isServerRunning) Color(0xFF10B981).copy(alpha = 0.16f)
+                                          else Color.White.copy(alpha = 0.07f)
+                                      )
+                                      .border(
+                                          1.dp,
+                                          if (isServerRunning) Color(0xFF34D399).copy(alpha = 0.45f)
+                                          else Color.White.copy(alpha = 0.15f),
+                                          RoundedCornerShape(50)
+                                      )
+                                      .padding(horizontal = 14.dp, vertical = 7.dp)
+                              ) {
+                                  Row(verticalAlignment = Alignment.CenterVertically) {
+                                      Box(
+                                          modifier = Modifier
+                                              .size(8.dp)
+                                              .clip(CircleShape)
+                                              .background(
+                                                  if (isServerRunning) Color(0xFF34D399)
+                                                  else Color(0xFF64748B)
+                                              )
+                                      )
+                                      Spacer(modifier = Modifier.width(7.dp))
+                                      Text(
+                                          text = if (isServerRunning) "LIVE" else "IDLE",
+                                          color = if (isServerRunning) Color(0xFFA7F3D0) else Color(0xFF94A3B8),
+                                          fontSize = 11.sp,
+                                          fontWeight = FontWeight.SemiBold
+                                      )
+                                  }
+                              }
+                          }
+                      }
+
+                      // Server Control & Browser Endpoint Card
+                      item {
+                          LiquidGlassCard(modifier = Modifier.fillMaxWidth()) {
+                              Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                  Row(
+                                      modifier = Modifier.fillMaxWidth(),
+                                      horizontalArrangement = Arrangement.SpaceBetween,
+                                      verticalAlignment = Alignment.CenterVertically
+                                  ) {
+                                      Column(modifier = Modifier.weight(1f)) {
+                                          Text(
+                                              text = "BROWSER ACCESS URL",
+                                              color = Color(0xFF7DD3FC),
+                                              fontSize = 11.sp,
+                                              fontWeight = FontWeight.SemiBold,
+                                              letterSpacing = 1.1.sp
+                                          )
+                                          Spacer(modifier = Modifier.height(4.dp))
+                                          Text(
+                                              text = if (isServerRunning) serverUrl else "Server Offline",
+                                              color = Color.White,
+                                              fontSize = 20.sp,
+                                              fontFamily = FontFamily.Monospace,
+                                              fontWeight = FontWeight.Bold
+                                          )
+                                          Text(
+                                              text = "Open in any browser on the same Wi-Fi or Hotspot",
+                                              color = Color(0xFF94A3B8),
+                                              fontSize = 12.sp
+                                          )
+                                      }
+
+                                      Row {
+                                          IconButton(
+                                              onClick = {
+                                                  localIpAddress = getDeviceLanIpAddress()
+                                                  val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                                  clipboard.setPrimaryClip(ClipData.newPlainText("Local Drop URL", serverUrl))
+                                                  Toast.makeText(context, "Copied $serverUrl", Toast.LENGTH_SHORT).show()
+                                              }
+                                          ) {
+                                              Icon(
+                                                  imageVector = Icons.Outlined.ContentCopy,
+                                                  contentDescription = "Copy URL",
+                                                  tint = Color(0xFF7DD3FC)
+                                              )
+                                          }
+                                          IconButton(
+                                              onClick = { showQrModal = !showQrModal }
+                                          ) {
+                                              Icon(
+                                                  imageVector = Icons.Outlined.QrCode2,
+                                                  contentDescription = "QR Code",
+                                                  tint = Color(0xFF38BDF8)
+                                              )
+                                          }
+                                      }
+                                  }
+
+                                  AnimatedVisibility(visible = showQrModal && qrBitmap != null) {
+                                      Box(
+                                          modifier = Modifier
+                                              .fillMaxWidth()
+                                              .clip(RoundedCornerShape(20.dp))
+                                              .background(Color.White.copy(alpha = 0.06f))
+                                              .padding(16.dp),
+                                          contentAlignment = Alignment.Center
+                                      ) {
+                                          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                              qrBitmap?.let { bmp ->
+                                                  Image(
+                                                      bitmap = bmp.asImageBitmap(),
+                                                      contentDescription = "LAN URL QR Code",
+                                                      modifier = Modifier
+                                                          .size(170.dp)
+                                                          .clip(RoundedCornerShape(14.dp))
+                                                          .background(Color.White)
+                                                          .padding(8.dp)
+                                                  )
+                                              }
+                                              Spacer(modifier = Modifier.height(8.dp))
+                                              Text(
+                                                  text = "Scan with another device to browse & download",
+                                                  color = Color(0xFFBAE6FD),
+                                                  fontSize = 12.sp
+                                              )
+                                          }
+                                      }
+                                  }
+
+                                  // Action Buttons
+                                  Row(
+                                      modifier = Modifier.fillMaxWidth(),
+                                      horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                  ) {
+                                      Button(
+                                          onClick = {
+                                              val folder = selectedFolderUri
+                                              if (folder == null) {
+                                                  Toast.makeText(
+                                                      context,
+                                                      "Select a folder first to start hosting",
+                                                      Toast.LENGTH_SHORT
+                                                  ).show()
+                                                  folderPickerLauncher.launch(null)
+                                              } else {
+                                                  if (isServerRunning) {
+                                                      onStopServer()
+                                                      isServerRunning = false
+                                                  } else {
+                                                      localIpAddress = getDeviceLanIpAddress()
+                                                      onStartServer(folder, serverPort) { totalDownloads++ }
+                                                      isServerRunning = true
+                                                  }
+                                              }
+                                          },
+                                          modifier = Modifier
+                                              .weight(1f)
+                                              .height(52.dp),
+                                          shape = RoundedCornerShape(16.dp),
+                                          colors = ButtonDefaults.buttonColors(
+                                              containerColor = if (isServerRunning) Color(0xFFEF4444) else Color(0xFF2563EB)
+                                          )
+                                      ) {
+                                          Icon(
+                                              imageVector = Icons.Outlined.PowerSettingsNew,
+                                              contentDescription = null,
+                                              tint = Color.White,
+                                              modifier = Modifier.size(19.dp)
+                                          )
+                                          Spacer(modifier = Modifier.width(8.dp))
+                                          Text(
+                                              text = if (isServerRunning) "Stop Hosting" else "Start Hosting",
+                                              color = Color.White,
+                                              fontWeight = FontWeight.SemiBold
+                                          )
+                                      }
+
+                                      Button(
+                                          onClick = { folderPickerLauncher.launch(null) },
+                                          modifier = Modifier.height(52.dp),
+                                          shape = RoundedCornerShape(16.dp),
+                                          colors = ButtonDefaults.buttonColors(
+                                              containerColor = Color.White.copy(alpha = 0.1f)
+                                          )
+                                      ) {
+                                          Icon(
+                                              imageVector = Icons.Outlined.FolderOpen,
+                                              contentDescription = "Choose Folder",
+                                              tint = Color(0xFF7DD3FC),
+                                              modifier = Modifier.size(19.dp)
+                                          )
+                                          Spacer(modifier = Modifier.width(8.dp))
+                                          Text(
+                                              text = "Folder",
+                                              color = Color.White,
+                                              fontWeight = FontWeight.Medium
+                                          )
+                                      }
+                                  }
+                              }
+                          }
+                      }
+
+                      // Scoped Folder & Stats Card
+                      item {
+                          LiquidGlassCard(modifier = Modifier.fillMaxWidth()) {
+                              Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                  Row(
+                                      modifier = Modifier.fillMaxWidth(),
+                                      verticalAlignment = Alignment.CenterVertically,
+                                      horizontalArrangement = Arrangement.SpaceBetween
+                                  ) {
+                                      Row(
+                                          verticalAlignment = Alignment.CenterVertically,
+                                          modifier = Modifier.weight(1f)
+                                      ) {
+                                          Box(
+                                              modifier = Modifier
+                                                  .size(42.dp)
+                                                  .clip(RoundedCornerShape(13.dp))
+                                                  .background(
+                                                      Brush.linearGradient(
+                                                          listOf(Color(0xFF1D4ED8), Color(0xFF38BDF8))
+                                                      )
+                                                  ),
+                                              contentAlignment = Alignment.Center
+                                          ) {
+                                              Icon(
+                                                  imageVector = Icons.Outlined.Folder,
+                                                  contentDescription = null,
+                                                  tint = Color.White
+                                              )
+                                          }
+                                          Spacer(modifier = Modifier.width(12.dp))
+                                          Column {
+                                              Text(
+                                                  text = "SCOPED SHARED FOLDER",
+                                                  color = Color(0xFF94A3B8),
+                                                  fontSize = 10.sp,
+                                                  fontWeight = FontWeight.SemiBold,
+                                                  letterSpacing = 1.sp
+                                              )
+                                              Text(
+                                                  text = folderName,
+                                                  color = Color.White,
+                                                  fontSize = 16.sp,
+                                                  fontWeight = FontWeight.SemiBold,
+                                                  maxLines = 1,
+                                                  overflow = TextOverflow.Ellipsis
+                                              )
+                                          }
+                                      }
+
+                                      IconButton(
+                                          onClick = {
+                                              localIpAddress = getDeviceLanIpAddress()
+                                              refreshFolderContents(selectedFolderUri)
+                                          }
+                                      ) {
+                                          Icon(
+                                              imageVector = Icons.Outlined.Refresh,
+                                              contentDescription = "Refresh Folder",
+                                              tint = Color(0xFF94A3B8)
+                                          )
+                                      }
+                                  }
+
+                                  Row(
+                                      modifier = Modifier.fillMaxWidth(),
+                                      horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                  ) {
+                                      StatPill(
+                                          label = "Shared Items",
+                                          value = "${sharedFiles.size}",
+                                          modifier = Modifier.weight(1f)
+                                      )
+                                      StatPill(
+                                          label = "Downloads",
+                                          value = "$totalDownloads",
+                                          modifier = Modifier.weight(1f)
+                                      )
+                                      StatPill(
+                                          label = "Access Scope",
+                                          value = "Folder Only",
+                                          modifier = Modifier.weight(1f)
+                                      )
+                                  }
+                              }
+                          }
+                      }
+
+                      // File List Section Header
+                      item {
+                          Row(
+                              modifier = Modifier
+                                  .fillMaxWidth()
+                                  .padding(horizontal = 4.dp),
+                              horizontalArrangement = Arrangement.SpaceBetween,
+                              verticalAlignment = Alignment.CenterVertically
+                          ) {
+                              Text(
+                                  text = "SHARED FOLDER CONTENTS",
+                                  color = Color(0xFF94A3B8),
+                                  fontSize = 11.sp,
+                                  fontWeight = FontWeight.SemiBold,
+                                  letterSpacing = 1.1.sp
+                              )
+                              Text(
+                                  text = if (isScanning) "Scanning..." else "${sharedFiles.size} items",
+                                  color = Color(0xFF38BDF8),
+                                  fontSize = 12.sp
+                              )
+                          }
+                      }
+
+                      if (sharedFiles.isEmpty()) {
+                          item {
+                              LiquidGlassCard(modifier = Modifier.fillMaxWidth()) {
+                                  Column(
+                                      modifier = Modifier
+                                          .fillMaxWidth()
+                                          .padding(vertical = 18.dp),
+                                      horizontalAlignment = Alignment.CenterHorizontally
+                                  ) {
+                                      Icon(
+                                          imageVector = Icons.Outlined.WifiTethering,
+                                          contentDescription = null,
+                                          tint = Color(0xFF38BDF8),
+                                          modifier = Modifier.size(36.dp)
+                                      )
+                                      Spacer(modifier = Modifier.height(10.dp))
+                                      Text(
+                                          text = if (selectedFolderUri == null)
+                                              "Select a folder to share strictly its contents over LAN"
+                                          else
+                                              "This folder is currently empty",
+                                          color = Color(0xFFCBD5E1),
+                                          fontSize = 14.sp
+                                      )
+                                  }
+                              }
+                          }
+                      } else {
+                          items(sharedFiles) { item ->
+                              Row(
+                                  modifier = Modifier
+                                      .fillMaxWidth()
+                                      .clip(RoundedCornerShape(18.dp))
+                                      .background(Color.White.copy(alpha = 0.05f))
+                                      .border(
+                                          1.dp,
+                                          Color.White.copy(alpha = 0.1f),
+                                          RoundedCornerShape(18.dp)
+                                      )
+                                      .padding(horizontal = 16.dp, vertical = 13.dp),
+                                  verticalAlignment = Alignment.CenterVertically,
+                                  horizontalArrangement = Arrangement.SpaceBetween
+                              ) {
+                                  Row(
+                                      verticalAlignment = Alignment.CenterVertically,
+                                      modifier = Modifier.weight(1f)
+                                  ) {
+                                      Box(
+                                          modifier = Modifier
+                                              .size(38.dp)
+                                              .clip(RoundedCornerShape(11.dp))
+                                              .background(
+                                                  if (item.isDirectory)
+                                                      Color(0xFF2563EB).copy(alpha = 0.22f)
+                                                  else
+                                                      Color(0xFF38BDF8).copy(alpha = 0.15f)
+                                              ),
+                                          contentAlignment = Alignment.Center
+                                      ) {
+                                          Icon(
+                                              imageVector = if (item.isDirectory)
+                                                  Icons.Outlined.Folder
+                                              else
+                                                  Icons.Outlined.InsertDriveFile,
+                                              contentDescription = null,
+                                              tint = if (item.isDirectory)
+                                                  Color(0xFF60A5FA)
+                                              else
+                                                  Color(0xFF38BDF8),
+                                              modifier = Modifier.size(20.dp)
+                                          )
+                                      }
+                                      Spacer(modifier = Modifier.width(12.dp))
+                                      Column {
+                                          Text(
+                                              text = item.name,
+                                              color = Color.White,
+                                              fontSize = 14.sp,
+                                              fontWeight = FontWeight.Medium,
+                                              maxLines = 1,
+                                              overflow = TextOverflow.Ellipsis
+                                          )
+                                          Text(
+                                              text = if (item.isDirectory) "Subfolder" else formatFileSize(item.sizeBytes),
+                                              color = Color(0xFF94A3B8),
+                                              fontSize = 12.sp
+                                          )
+                                      }
+                                  }
+
+                                  Icon(
+                                      imageVector = Icons.Outlined.CheckCircle,
+                                      contentDescription = "Ready",
+                                      tint = Color(0xFF38BDF8).copy(alpha = 0.65f),
+                                      modifier = Modifier.size(18.dp)
+                                  )
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+
+          @Composable
+          fun StatPill(label: String, value: String, modifier: Modifier = Modifier) {
+              Column(
+                  modifier = modifier
+                      .clip(RoundedCornerShape(14.dp))
+                      .background(Color.White.copy(alpha = 0.05f))
+                      .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
+                      .padding(horizontal = 12.dp, vertical = 10.dp)
+              ) {
+                  Text(
+                      text = label,
+                      color = Color(0xFF94A3B8),
+                      fontSize = 11.sp
+                  )
+                  Spacer(modifier = Modifier.height(2.dp))
+                  Text(
+                      text = value,
+                      color = Color.White,
+                      fontSize = 14.sp,
+                      fontWeight = FontWeight.Bold,
+                      maxLines = 1,
+                      overflow = TextOverflow.Ellipsis
+                  )
+              }
+          }
+
+          class LocalDropHttpServer(
+              private val context: Context,
+              private val rootFolderUri: Uri,
+              port: Int,
+              private val onFileDownloaded: () -> Unit
+          ) : NanoHTTPD(port) {
+
+              override fun serve(session: IHTTPSession): Response {
+                  val uriPath = session.uri ?: "/"
+                  val params = session.parameters
+
+                  return try {
+                      when {
+                          uriPath == "/download" -> {
+                              val relPath = params["path"]?.firstOrNull() ?: ""
+                              serveScopedDownload(relPath)
+                          }
+                          else -> {
+                              val subDir = params["dir"]?.firstOrNull() ?: ""
+                              serveLiquidGlassWebPortal(subDir)
+                          }
+                      }
+                  } catch (e: Exception) {
+                      newFixedLengthResponse(
+                          Response.Status.INTERNAL_ERROR,
+                          "text/plain",
+                          "Server Error: ${e.localizedMessage}"
+                      )
+                  }
+              }
+
+              private fun resolveRelativeDocument(relativePath: String): DocumentFile? {
+                  val rootDoc = DocumentFile.fromTreeUri(context, rootFolderUri) ?: return null
+                  val cleaned = relativePath.trim('/').replace("\\", "/")
+                  if (cleaned.isEmpty()) return rootDoc
+                  val segments = cleaned.split("/").filter { it.isNotEmpty() && it != "." && it != ".." }
+                  var current: DocumentFile = rootDoc
+                  for (seg in segments) {
+                      val next = current.findFile(seg) ?: return null
+                      current = next
+                  }
+                  return current
+              }
+
+              private fun serveScopedDownload(relativePath: String): Response {
+                  val decodedPath = URLDecoder.decode(relativePath, "UTF-8")
+                  val targetFile = resolveRelativeDocument(decodedPath)
+                  if (targetFile == null || !targetFile.exists() || targetFile.isDirectory) {
+                      return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "File not found in selected folder.")
+                  }
+
+                  val rawInputStream = context.contentResolver.openInputStream(targetFile.uri)
+                      ?: return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Unable to open file stream.")
+
+                  val bufferedStream: InputStream = object : FilterInputStream(rawInputStream) {
+                      override fun read(b: ByteArray, off: Int, len: Int): Int {
+                          return super.read(b, off, len.coerceAtMost(65536))
+                      }
+                  }
+
+                  val fileName = targetFile.name ?: "download.bin"
+                  val mime = targetFile.type ?: guessMimeType(fileName)
+                  val fileLength = targetFile.length()
+
+                  onFileDownloaded()
+
+                  val response = if (fileLength >= 0L) {
+                      newFixedLengthResponse(Response.Status.OK, mime, bufferedStream, fileLength)
+                  } else {
+                      newChunkedResponse(Response.Status.OK, mime, bufferedStream)
+                  }
+
+                  val encodedFileName = URLEncoder.encode(fileName, "UTF-8").replace("+", "%20")
+                  response.addHeader(
+                      "Content-Disposition",
+                      "attachment; filename=\"${fileName.replace("\"", "")}\"; filename*=UTF-8''$encodedFileName"
+                  )
+                  response.addHeader("Accept-Ranges", "bytes")
+                  response.addHeader("Cache-Control", "no-store")
+                  return response
+              }
+
+              private fun serveLiquidGlassWebPortal(subDir: String): Response {
+                  val cleanedDir = subDir.trim('/').replace("\\", "/")
+                  val currentDoc = resolveRelativeDocument(cleanedDir)
+                      ?: return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Folder not found.")
+
+                  val rootDoc = DocumentFile.fromTreeUri(context, rootFolderUri)
+                  val rootTitle = rootDoc?.name ?: "Shared Folder"
+
+                  val children = currentDoc.listFiles().toList().sortedWith(
+                      compareBy({ !it.isDirectory }, { (it.name ?: "").lowercase(Locale.getDefault()) })
+                  )
+
+                  val rowsBuilder = StringBuilder()
+                  if (cleanedDir.isNotEmpty()) {
+                      val parentDir = cleanedDir.substringBeforeLast('/', "")
+                      val parentUrl = if (parentDir.isEmpty()) "/" else "/?dir=" + URLEncoder.encode(parentDir, "UTF-8")
+                      rowsBuilder.append(
+                          """
+                          <a class="file-row folder-row" href="$parentUrl">
+                              <div class="file-left">
+                                  <div class="icon-badge folder-badge">&#8592;</div>
+                                  <div class="file-meta">
+                                      <div class="file-name">.. (Parent Folder)</div>
+                                      <div class="file-sub">Return to previous directory</div>
+                                  </div>
+                              </div>
+                              <span class="action-pill">Back</span>
+                          </a>
+                          """.trimIndent()
+                      )
+                  }
+
+                  for (file in children) {
+                      val name = file.name ?: "Unnamed"
+                      val safeName = escapeHtml(name)
+                      val relPath = if (cleanedDir.isEmpty()) name else "$cleanedDir/$name"
+                      val encodedRel = URLEncoder.encode(relPath, "UTF-8")
+
+                      if (file.isDirectory) {
+                          rowsBuilder.append(
+                              """
+                              <a class="file-row folder-row" href="/?dir=$encodedRel" data-name="${safeName.lowercase(Locale.getDefault())}">
+                                  <div class="file-left">
+                                      <div class="icon-badge folder-badge">
+                                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                                      </div>
+                                      <div class="file-meta">
+                                          <div class="file-name">$safeName</div>
+                                          <div class="file-sub">Folder</div>
+                                      </div>
+                                  </div>
+                                  <span class="action-pill">Open</span>
+                              </a>
+                              """.trimIndent()
+                          )
+                      } else {
+                          val sizeLabel = formatFileSize(file.length())
+                          rowsBuilder.append(
+                              """
+                              <div class="file-row" data-name="${safeName.lowercase(Locale.getDefault())}">
+                                  <div class="file-left">
+                                      <div class="icon-badge file-badge">
+                                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                      </div>
+                                      <div class="file-meta">
+                                          <div class="file-name">$safeName</div>
+                                          <div class="file-sub">$sizeLabel &bull; Original Uncompressed</div>
+                                      </div>
+                                  </div>
+                                  <a class="download-btn" href="/download?path=$encodedRel" download="$safeName">
+                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                      <span>Download</span>
+                                  </a>
+                              </div>
+                              """.trimIndent()
+                          )
+                      }
+                  }
+
+                  val emptyStateHtml = if (children.isEmpty()) {
+                      """<div class="empty-box">No files in this folder yet.</div>"""
+                  } else ""
+
+                  val pathDisplay = if (cleanedDir.isEmpty()) "/$rootTitle" else "/$rootTitle/$cleanedDir"
+
+                  val html = """
+                  <!DOCTYPE html>
+                  <html lang="en">
+                  <head>
+                      <meta charset="UTF-8" />
+                      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                      <title>Local Drop &mdash; ${escapeHtml(rootTitle)}</title>
+                      <style>
+                          :root {
+                              --bg-deep: #040711;
+                              --glass-bg: rgba(255, 255, 255, 0.065);
+                              --glass-border: rgba(255, 255, 255, 0.16);
+                              --glass-highlight: rgba(56, 189, 248, 0.22);
+                              --text-main: #F8FAFC;
+                              --text-muted: #94A3B8;
+                              --accent-blue: #2563EB;
+                              --accent-cyan: #38BDF8;
+                          }
+                          * { box-sizing: border-box; margin: 0; padding: 0; }
+                          body {
+                              min-height: 100vh;
+                              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+                              background: radial-gradient(circle at 15% 15%, rgba(37, 99, 235, 0.28), transparent 45%),
+                                          radial-gradient(circle at 85% 30%, rgba(56, 189, 248, 0.20), transparent 45%),
+                                          linear-gradient(160deg, #03060E 0%, #071024 55%, #03050A 100%);
+                              color: var(--text-main);
+                              padding: 28px 16px 60px;
+                          }
+                          .container {
+                              max-width: 840px;
+                              margin: 0 auto;
+                          }
+                          .glass-header {
+                              background: linear-gradient(135deg, rgba(255,255,255,0.11), rgba(56,189,248,0.05), rgba(255,255,255,0.03));
+                              backdrop-filter: blur(24px);
+                              -webkit-backdrop-filter: blur(24px);
+                              border: 1px solid var(--glass-border);
+                              border-radius: 28px;
+                              padding: 24px 26px;
+                              box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+                              margin-bottom: 20px;
+                          }
+                          .brand-row {
+                              display: flex;
+                              align-items: center;
+                              justify-content: space-between;
+                              gap: 16px;
+                              flex-wrap: wrap;
+                          }
+                          .brand-left {
+                              display: flex;
+                              align-items: center;
+                              gap: 15px;
+                          }
+                          .brand-icon {
+                              width: 52px;
+                              height: 52px;
+                              border-radius: 15px;
+                              background: linear-gradient(145deg, #10172A, #030509);
+                              border: 1px solid rgba(56, 189, 248, 0.35);
+                              display: flex;
+                              align-items: center;
+                              justify-content: center;
+                              box-shadow: 0 8px 24px rgba(37, 99, 235, 0.3);
+                          }
+                          .brand-title {
+                              font-size: 1.45rem;
+                              font-weight: 700;
+                              letter-spacing: -0.02em;
+                              background: linear-gradient(90deg, #FFFFFF, #7DD3FC);
+                              -webkit-background-clip: text;
+                              -webkit-text-fill-color: transparent;
+                          }
+                          .brand-sub {
+                              font-size: 0.82rem;
+                              color: var(--text-muted);
+                              margin-top: 2px;
+                          }
+                          .status-pill {
+                              display: inline-flex;
+                              align-items: center;
+                              gap: 8px;
+                              padding: 7px 14px;
+                              border-radius: 999px;
+                              font-size: 0.75rem;
+                              font-weight: 600;
+                              background: rgba(16, 185, 129, 0.14);
+                              border: 1px solid rgba(52, 211, 153, 0.4);
+                              color: #A7F3D0;
+                          }
+                          .status-dot {
+                              width: 8px;
+                              height: 8px;
+                              border-radius: 50%;
+                              background: #34D399;
+                              box-shadow: 0 0 10px #34D399;
+                          }
+                          .toolbar {
+                              margin-top: 20px;
+                              display: flex;
+                              align-items: center;
+                              justify-content: space-between;
+                              gap: 12px;
+                              flex-wrap: wrap;
+                          }
+                          .path-badge {
+                              font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+                              font-size: 0.82rem;
+                              color: #BAE6FD;
+                              background: rgba(255, 255, 255, 0.05);
+                              border: 1px solid rgba(255, 255, 255, 0.1);
+                              padding: 9px 14px;
+                              border-radius: 14px;
+                              overflow: hidden;
+                              text-overflow: ellipsis;
+                              white-space: nowrap;
+                              max-width: 100%;
+                          }
+                          .search-box {
+                              flex: 1;
+                              min-width: 210px;
+                              background: rgba(255, 255, 255, 0.06);
+                              border: 1px solid rgba(255, 255, 255, 0.15);
+                              border-radius: 14px;
+                              padding: 10px 15px;
+                              color: var(--text-main);
+                              font-size: 0.88rem;
+                              outline: none;
+                              transition: border-color 0.2s, box-shadow 0.2s;
+                          }
+                          .search-box:focus {
+                              border-color: var(--accent-cyan);
+                              box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
+                          }
+                          .glass-list {
+                              background: var(--glass-bg);
+                              backdrop-filter: blur(22px);
+                              -webkit-backdrop-filter: blur(22px);
+                              border: 1px solid var(--glass-border);
+                              border-radius: 26px;
+                              padding: 14px;
+                              box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+                              display: flex;
+                              flex-direction: column;
+                              gap: 10px;
+                          }
+                          .file-row {
+                              display: flex;
+                              align-items: center;
+                              justify-content: space-between;
+                              gap: 14px;
+                              padding: 14px 16px;
+                              border-radius: 18px;
+                              background: rgba(255, 255, 255, 0.04);
+                              border: 1px solid rgba(255, 255, 255, 0.08);
+                              text-decoration: none;
+                              color: inherit;
+                              transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+                          }
+                          .file-row:hover {
+                              transform: translateY(-1px);
+                              background: rgba(255, 255, 255, 0.08);
+                              border-color: var(--glass-highlight);
+                          }
+                          .file-left {
+                              display: flex;
+                              align-items: center;
+                              gap: 14px;
+                              min-width: 0;
+                              flex: 1;
+                          }
+                          .icon-badge {
+                              width: 42px;
+                              height: 42px;
+                              border-radius: 13px;
+                              display: flex;
+                              align-items: center;
+                              justify-content: center;
+                              flex-shrink: 0;
+                          }
+                          .folder-badge {
+                              background: linear-gradient(135deg, rgba(37, 99, 235, 0.32), rgba(59, 130, 246, 0.18));
+                              color: #60A5FA;
+                              border: 1px solid rgba(96, 165, 250, 0.3);
+                          }
+                          .file-badge {
+                              background: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(14, 165, 233, 0.1));
+                              color: #38BDF8;
+                              border: 1px solid rgba(56, 189, 248, 0.25);
+                          }
+                          .file-meta {
+                              min-width: 0;
+                          }
+                          .file-name {
+                              font-size: 0.95rem;
+                              font-weight: 600;
+                              color: #F8FAFC;
+                              white-space: nowrap;
+                              overflow: hidden;
+                              text-overflow: ellipsis;
+                          }
+                          .file-sub {
+                              font-size: 0.76rem;
+                              color: var(--text-muted);
+                              margin-top: 3px;
+                          }
+                          .download-btn {
+                              display: inline-flex;
+                              align-items: center;
+                              gap: 7px;
+                              padding: 9px 16px;
+                              border-radius: 13px;
+                              background: linear-gradient(135deg, #2563EB, #0284C7);
+                              color: #FFFFFF;
+                              font-size: 0.82rem;
+                              font-weight: 600;
+                              text-decoration: none;
+                              border: 1px solid rgba(125, 211, 252, 0.35);
+                              box-shadow: 0 6px 18px rgba(37, 99, 235, 0.32);
+                              flex-shrink: 0;
+                              transition: opacity 0.15s ease, transform 0.15s ease;
+                          }
+                          .download-btn:hover {
+                              opacity: 0.94;
+                              transform: scale(1.02);
+                          }
+                          .action-pill {
+                              padding: 7px 14px;
+                              border-radius: 11px;
+                              background: rgba(255, 255, 255, 0.08);
+                              color: #BAE6FD;
+                              font-size: 0.78rem;
+                              font-weight: 600;
+                          }
+                          .empty-box {
+                              text-align: center;
+                              padding: 36px 20px;
+                              color: var(--text-muted);
+                              font-size: 0.92rem;
+                          }
+                      </style>
+                  </head>
+                  <body>
+                      <div class="container">
+                          <div class="glass-header">
+                              <div class="brand-row">
+                                  <div class="brand-left">
+                                      <div class="brand-icon">
+                                          <svg width="32" height="32" viewBox="0 0 108 108" fill="none">
+                                              <path d="M31.4 76.6 A32 32 0 1 1 76.6 31.4" stroke="#2563EB" stroke-width="7" stroke-linecap="round"/>
+                                              <path d="M37.7 70.3 A23 23 0 1 1 70.3 37.7" stroke="#3B82F6" stroke-width="7" stroke-linecap="round"/>
+                                              <path d="M78.5 35.5 A32 32 0 0 1 35.5 78.5" stroke="#38BDF8" stroke-width="7" stroke-linecap="round"/>
+                                              <path d="M72.2 41.8 A23 23 0 0 1 41.8 72.2" stroke="#7DD3FC" stroke-width="7" stroke-linecap="round"/>
+                                              <circle cx="51" cy="51" r="8" fill="#2563EB"/>
+                                              <circle cx="57" cy="57" r="8" fill="#38BDF8"/>
+                                          </svg>
+                                      </div>
+                                      <div>
+                                          <div class="brand-title">Local Drop</div>
+                                          <div class="brand-sub">Direct Uncompressed LAN File Portal</div>
+                                      </div>
+                                  </div>
+                                  <div class="status-pill">
+                                      <span class="status-dot"></span>
+                                      <span>Scoped Folder Active</span>
+                                  </div>
+                              </div>
+                              <div class="toolbar">
+                                  <div class="path-badge">${escapeHtml(pathDisplay)}</div>
+                                  <input type="text" id="filterInput" class="search-box" placeholder="Filter files in this folder..." oninput="filterRows()" />
+                              </div>
+                          </div>
+
+                          <div class="glass-list" id="fileList">
+                              $rowsBuilder
+                              $emptyStateHtml
+                          </div>
+                      </div>
+                      <script>
+                          function filterRows() {
+                              var q = document.getElementById('filterInput').value.toLowerCase();
+                              var rows = document.querySelectorAll('#fileList .file-row');
+                              for (var i = 0; i < rows.length; i++) {
+                                  var name = rows[i].getAttribute('data-name') || '';
+                                  if (!name || name.indexOf(q) !== -1) {
+                                      rows[i].style.display = 'flex';
+                                  } else {
+                                      rows[i].style.display = 'none';
+                                  }
+                              }
+                          }
+                      </script>
+                  </body>
+                  </html>
+                  """.trimIndent()
+
+                  return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html)
+              }
+
+              private fun escapeHtml(text: String): String {
+                  return buildString(text.length) {
+                      for (ch in text) {
+                          when (ch) {
+                              '&' -> append("&amp;")
+                              '<' -> append("&lt;")
+                              '>' -> append("&gt;")
+                              '"' -> append("&quot;")
+                              '\'' -> append("&#39;")
+                              else -> append(ch)
+                          }
+                      }
+                  }
+              }
+          }
+
+          fun getDeviceLanIpAddress(): String {
+              try {
+                  val interfaces = Collections.list(NetworkInterface.getNetworkInterfaces())
+                  var fallbackIp: String? = null
+                  for (intf in interfaces) {
+                      if (!intf.isUp || intf.isLoopback) continue
+                      val name = intf.name.lowercase(Locale.getDefault())
+                      for (addr in Collections.list(intf.inetAddresses)) {
+                          if (!addr.isLoopbackAddress && addr is Inet4Address) {
+                              val ip = addr.hostAddress ?: continue
+                              if (name.startsWith("wlan") || name.startsWith("ap") || name.startsWith("swlan") || name.startsWith("rndis")) {
+                                  return ip
+                              }
+                              if (fallbackIp == null) {
+                                  fallbackIp = ip
+                              }
+                          }
+                      }
+                  }
+                  if (fallbackIp != null) return fallbackIp
+              } catch (_: Exception) {}
+              return "192.168.43.1"
+          }
+
+          fun formatFileSize(sizeBytes: Long): String {
+              if (sizeBytes <= 0) return "0 B"
+              val units = arrayOf("B", "KB", "MB", "GB", "TB")
+              val digitGroups = (log10(sizeBytes.toDouble()) / log10(1024.0)).toInt().coerceIn(0, units.lastIndex)
+              return DecimalFormat("#,##0.#").format(sizeBytes / 1024.0.pow(digitGroups.toDouble())) + " " + units[digitGroups]
+          }
+
+          fun guessMimeType(fileName: String): String {
+              val ext = fileName.substringAfterLast('.', "").lowercase(Locale.getDefault())
+              if (ext.isNotEmpty()) {
+                  MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext)?.let { return it }
+              }
+              return "application/octet-stream"
+          }
+
+          fun generateQrCodeBitmap(content: String, sizePx: Int): Bitmap? {
+              return try {
+                  val matrix = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, sizePx, sizePx)
+                  val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.RGB_565)
+                  for (x in 0 until sizePx) {
+                      for (y in 0 until sizePx) {
+                          bmp.setPixel(x, y, if (matrix.get(x, y)) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+                      }
+                  }
+                  bmp
+              } catch (_: Exception) {
+                  null
+              }
+          }
+          EOF
+
+      - name: Build Debug APK
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Prepare Named APK
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk LocalDrop-v1.0.apk
+
+      - name: Upload Local Drop APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LocalDrop-APK
+          path: LocalDrop-v1.0.apk
+
+      - name: Create GitHub Release with APK
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: "Local Drop v1.0 (Build #${{ github.run_number }})"
+          body: "Automated build of **Local Drop** LAN file hosting Android app with Liquid Glass UI, scoped single-folder browser access, and custom puzzle-connected reversed hotspot + Wi-Fi icon."
+          files: LocalDrop-v1.0.apk
